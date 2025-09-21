@@ -40,29 +40,31 @@ def initialize_ee():
         st.stop()
 
 # -------------------------
-# Helper / 투발루 그래프용 데이터
+# Helper / 국가별 좌표 데이터
 # -------------------------
-@st.cache_data
-def generate_tuvalu_graph_data():
-    rng = np.random.RandomState(42)
-    rows = []
-    years = list(range(1990, 2051, 5))
-    base, trend = 0.05, 0.008
-    for year in years:
-        years_from0 = year - min(years)
-        sea = float(np.round(base + trend * years_from0 + rng.normal(scale=0.01), 3))
-        rows.append({"country": "투발루", "year": year, "sea_level_m": max(0.0, sea)})
-    return pd.DataFrame(rows)
+COUNTRY_COORDS = {
+    "대한민국": [35.9, 127.7],
+    "투발루": [-7.1095, 177.6493],
+    "방글라데시": [23.6850, 90.3563],
+    "네덜란드": [52.1326, 5.2913],
+    "베트남": [14.0583, 108.2772],
+    "몰디브": [3.2028, 73.2207],
+    "일본": [36.2048, 138.2529],
+    "필리핀": [12.8797, 121.7740],
+    "미국": [37.0902, -95.7129],
+    "이집트": [26.8206, 30.8025],
+    "인도네시아": [-0.7893, 113.9213]
+}
 
-df_tuvalu_graph = generate_tuvalu_graph_data()
 
 # -------------------------
 # 사이드바: 사용자 입력
 # -------------------------
 st.sidebar.title("🔧 설정")
-st.sidebar.markdown("연도를 선택하면 지도가 실시간으로 갱신됩니다.")
+st.sidebar.markdown("연도와 국가를 선택하면 지도가 실시간으로 갱신됩니다.")
 sel_year = st.sidebar.slider("연도 선택", min_value=2025, max_value=2100, value=2050, step=5)
-show_tuvalu = st.sidebar.checkbox("투발루 상세 보기", value=True)
+country_name = st.sidebar.text_input("나라 이름 검색", placeholder="예: 대한민국, 투발루, 네덜란드")
+
 
 # -------------------------
 # 메인 화면 구성
@@ -80,6 +82,20 @@ POPULATION = ee.ImageCollection('WorldPop/GP/100m/pop').filterDate('2020').mean(
 
 sea_level_rise = (sel_year - 2025) / 75 * 0.8
 
+# 지도 중심 좌표와 줌 레벨 설정
+map_center = [20, 0]
+map_zoom = 2
+
+if country_name:
+    normalized_name = country_name.strip()
+    if normalized_name in COUNTRY_COORDS:
+        map_center = COUNTRY_COORDS[normalized_name]
+        map_zoom = 6 # 검색된 국가에 맞게 줌인
+        st.sidebar.success(f"'{normalized_name}'(으)로 이동합니다.")
+    else:
+        st.sidebar.warning(f"'{normalized_name}'을(를) 찾을 수 없습니다. 전체 지도를 표시합니다.")
+
+
 with st.spinner("지도 데이터를 계산하고 있습니다..."):
     flooded_mask_global = DEM.lte(sea_level_rise).selfMask()
     affected_population_heatmap = POPULATION.updateMask(flooded_mask_global)
@@ -90,7 +106,8 @@ with st.spinner("지도 데이터를 계산하고 있습니다..."):
         'palette': ['orange', 'red', 'darkred']
     }
     
-    m = geemap.Map(center=[20, 0], zoom=2)
+    # 설정된 좌표와 줌 레벨로 지도 생성
+    m = geemap.Map(center=map_center, zoom=map_zoom)
     m.add_basemap('SATELLITE')
     
     map_id_dict = affected_population_heatmap.getMapId(heatmap_vis_params)
@@ -148,17 +165,6 @@ st.markdown(
     "- **기술적 대응**: 방파제 및 자연 기반 해안 방어(맹그로브·갯벌 복원) 병행.  \n"
     "- **교육적 대응**: 청소년 대상 기후 교육 강화와 지역 캠페인 활성화."
 )
-st.markdown("----")
-st.header("투발루 상세 사례 (그래프)")
-if show_tuvalu:
-    # 투발루 연도별 그래프 (실제 데이터 아님—시뮬레이션)
-    fig_tuv = px.line(df_tuvalu_graph, x="year", y="sea_level_m", markers=True, title="투발루 연도별 해수면 상승 (시뮬레이션)")
-    fig_tuv.update_yaxes(title_text="해수면 상승 (m)")
-    st.plotly_chart(fig_tuv, use_container_width=True)
-    st.markdown(
-        "설명: 위 그래프는 교육용 시뮬레이션으로, 연도에 따른 해수면 상승 추이를 보여줍니다. "
-        "실제 투발루의 피해사례(식수 오염, 농지 침수, 이주 압력 등)는 이미 보고되고 있습니다."
-    )
 
 # -------------------------
 # 하단: 실천 체크리스트
@@ -182,6 +188,22 @@ if checked:
     st.markdown(f"**{len(checked)}**개의 항목을 실천하기로 약속했어요! 👍")
     df_checked = pd.DataFrame({"실천항목": checked})
     st.download_button("나의 다짐 목록 다운로드", data=df_checked.to_csv(index=False).encode("utf-8"), file_name="my_climate_actions.csv", mime="text/csv")
+
+# -------------------------
+# 데이터 출처
+# -------------------------
+st.markdown("---")
+st.header("📊 데이터 출처")
+st.markdown(
+    """
+    이 대시보드에서 사용된 주요 데이터는 다음과 같습니다.
+
+    - **지형 고도 데이터 (DEM)**: NASA NASADEM Digital Elevation 30m ([NASA/NASADEM_HGT/001](https://developers.google.com/earth-engine/datasets/catalog/NASA_NASADEM_HGT_001))
+    - **인구 밀도 데이터**: WorldPop Global Project Population Data (100m resolution) ([WorldPop/GP/100m/pop](https://developers.google.com/earth-engine/datasets/catalog/WorldPop_GP_100m_pop))
+
+    *모든 데이터는 Google Earth Engine 플랫폼을 통해 실시간으로 처리됩니다.*
+    """
+)
 
 # -------------------------
 # 맺음말
