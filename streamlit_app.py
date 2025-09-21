@@ -24,12 +24,10 @@ def initialize_ee():
             if secret_value:
                 creds_dict = json.loads(secret_value)
 
-        # 위 두 방법 중 하나로도 인증 정보를 찾지 못한 경우 오류 발생
         if not creds_dict:
             st.sidebar.error("GEE 인증 정보를 찾을 수 없습니다. GitHub 또는 Streamlit Secret 설정을 확인하세요.")
             return False
 
-        # 인증 정보로 GEE 초기화
         credentials = service_account.Credentials.from_service_account_info(creds_dict)
         scoped_credentials = credentials.with_scopes([
             'https://www.googleapis.com/auth/earthengine',
@@ -47,15 +45,12 @@ st.title("🌊 전 세계 해수면 상승 시뮬레이터")
 st.write("연도를 조절하여 전 세계의 인구 피해 위험 지역을 히트맵으로 확인합니다.")
 
 if initialize_ee():
-    # --- GEE 데이터셋 정의 ---
     DEM = ee.Image('NASA/NASADEM_HGT/001').select('elevation')
     POPULATION = ee.ImageCollection('WorldPop/GP/100m/pop').filterDate('2020').mean()
 
-    # --- 사용자 입력 (사이드바) ---
     st.sidebar.header("⚙️ 시뮬레이션 설정")
     year = st.sidebar.slider("🗓️ 연도 선택:", 2025, 2100, 2050, step=5)
     
-    # --- 메인 패널 ---
     sea_level_rise = (year - 2025) / 75 * 0.8
     
     with st.spinner("지도 데이터를 계산하고 있습니다..."):
@@ -68,13 +63,14 @@ if initialize_ee():
             'palette': ['orange', 'red', 'darkred']
         }
         
-        # --- 지도 생성 및 히트맵 표시 ---
         m = geemap.Map(center=[20, 0], zoom=2)
         m.add_basemap('SATELLITE')
         
         map_id_dict = affected_population_heatmap.getMapId(heatmap_vis_params)
+        
+        # 💡 --- 이 부분이 수정되었습니다 --- 💡
         folium.TileLayer(
-            tiles=map_id_dict['fetcher'].url_format,
+            tiles=map_id_dict['tile_fetcher'].url_format, # 'fetcher' -> 'tile_fetcher'
             attr='Google Earth Engine',
             overlay=True,
             name=f'{year}년 인구 피해 히트맵',
@@ -83,16 +79,12 @@ if initialize_ee():
         
         folium.LayerControl().add_to(m)
 
-    # --- 지도 출력 ---
     st.header(f"🗺️ {year}년 전 세계 인구 피해 위험 지역")
     m.to_streamlit(height=600)
 
 else:
-    # 이 부분은 initialize_ee()가 False를 반환했을 때를 대비한 것으로,
-    # 사이드바에 표시된 오류 메시지를 사용자가 볼 수 있도록 안내합니다.
     st.info("GEE 인증에 실패했습니다. 사이드바의 오류 메시지를 확인하고 Secret 설정을 점검해주세요.")
 
-# --- SSP2-4.5 해수면 상승 그래프 ---
 st.header("🌊 SSP2-4.5 해수면 상승 예측 (2020~2100)")
 
 ssp_data = {
