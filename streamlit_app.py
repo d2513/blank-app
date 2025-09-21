@@ -74,8 +74,11 @@ if initialize_ee():
         folium.LayerControl().add_to(m)
 
     # --- 지도 출력 ---
-st.header(f"🗺️ {year}년 전 세계 인구 피해 위험 지역")
-m.to_streamlit(height=600)
+    st.header(f"🗺️ {year}년 전 세계 인구 피해 위험 지역")
+    m.to_streamlit(height=600)
+
+else:
+    st.error("🚨 GEE 인증에 실패했습니다. Secret 키를 확인하세요.")
 
 # --- SSP2-4.5 해수면 상승 그래프 ---
 st.header("🌊 SSP2-4.5 해수면 상승 예측 (2020~2100)")
