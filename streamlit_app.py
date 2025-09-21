@@ -10,17 +10,27 @@ from google.oauth2 import service_account
 # -------------------- 페이지 설정 --------------------
 st.set_page_config(layout="wide", page_title="전 세계 해수면 상승 시뮬레이터")
 
-# -------------------- GEE 인증 --------------------
+# -------------------- GEE 인증 (두 환경 모두 지원) --------------------
 @st.cache_resource
 def initialize_ee():
     try:
-        secret_value = os.environ.get('GEE_JSON_KEY')
-        if not secret_value:
-            st.sidebar.error("🚨 GEE_JSON_KEY Secret을 찾을 수 없습니다.")
+        creds_dict = None
+        # 1. Streamlit Cloud에서 실행 중인지 확인하고 st.secrets을 먼저 시도
+        if hasattr(st, 'secrets') and st.secrets.get("gcp_service_account"):
+            creds_dict = st.secrets["gcp_service_account"]
+        # 2. st.secrets이 없으면 Codespaces/로컬 환경으로 간주하고 환경 변수 시도
+        else:
+            secret_value = os.environ.get('GEE_JSON_KEY')
+            if secret_value:
+                creds_dict = json.loads(secret_value)
+
+        # 위 두 방법 중 하나로도 인증 정보를 찾지 못한 경우 오류 발생
+        if not creds_dict:
+            st.sidebar.error("GEE 인증 정보를 찾을 수 없습니다. GitHub 또는 Streamlit Secret 설정을 확인하세요.")
             return False
-        
-        secret_json = json.loads(secret_value)
-        credentials = service_account.Credentials.from_service_account_info(secret_json)
+
+        # 인증 정보로 GEE 초기화
+        credentials = service_account.Credentials.from_service_account_info(creds_dict)
         scoped_credentials = credentials.with_scopes([
             'https://www.googleapis.com/auth/earthengine',
             'https://www.googleapis.com/auth/cloud-platform'
@@ -64,7 +74,7 @@ if initialize_ee():
         
         map_id_dict = affected_population_heatmap.getMapId(heatmap_vis_params)
         folium.TileLayer(
-            tiles=map_id_dict['tile_fetcher'].url_format,
+            tiles=map_id_dict['fetcher'].url_format,
             attr='Google Earth Engine',
             overlay=True,
             name=f'{year}년 인구 피해 히트맵',
@@ -78,7 +88,9 @@ if initialize_ee():
     m.to_streamlit(height=600)
 
 else:
-    st.error("🚨 GEE 인증에 실패했습니다. Secret 키를 확인하세요.")
+    # 이 부분은 initialize_ee()가 False를 반환했을 때를 대비한 것으로,
+    # 사이드바에 표시된 오류 메시지를 사용자가 볼 수 있도록 안내합니다.
+    st.info("GEE 인증에 실패했습니다. 사이드바의 오류 메시지를 확인하고 Secret 설정을 점검해주세요.")
 
 # --- SSP2-4.5 해수면 상승 그래프 ---
 st.header("🌊 SSP2-4.5 해수면 상승 예측 (2020~2100)")
