@@ -4,9 +4,6 @@ import folium
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import requests
-from io import BytesIO
-from PIL import Image
 import ee
 import geemap.foliumap as geemap
 import json
@@ -107,7 +104,6 @@ with st.spinner("지도 데이터를 계산하고 있습니다..."):
     
     folium.LayerControl().add_to(m)
 
-# 지도 크기 확대
 m.to_streamlit(height=800)
 
 st.markdown("---")
@@ -153,22 +149,15 @@ st.markdown(
     "- **교육적 대응**: 청소년 대상 기후 교육 강화와 지역 캠페인 활성화."
 )
 st.markdown("----")
-st.header("투발루 상세 사례 (그림·그래프)")
+st.header("투발루 상세 사례 (그래프)")
 if show_tuvalu:
-    try:
-        img_url = "https://upload.wikimedia.org/wikipedia/commons/9/97/Funafuti_Atoll%2C_Tuvalu_%28photo%29.jpg"
-        resp = requests.get(img_url, timeout=10)
-        img = Image.open(BytesIO(resp.content))
-        st.image(img, caption="투발루 해안 예시 사진 (출처: Wikimedia Commons)", use_column_width=True)
-    except Exception:
-        st.info("투발루 이미지 로드에 실패했습니다 (네트워크 환경).")
-
+    # 투발루 연도별 그래프 (실제 데이터 아님—시뮬레이션)
     fig_tuv = px.line(df_tuvalu_graph, x="year", y="sea_level_m", markers=True, title="투발루 연도별 해수면 상승 (시뮬레이션)")
     fig_tuv.update_yaxes(title_text="해수면 상승 (m)")
     st.plotly_chart(fig_tuv, use_container_width=True)
     st.markdown(
         "설명: 위 그래프는 교육용 시뮬레이션으로, 연도에 따른 해수면 상승 추이를 보여줍니다. "
-        "실제 투발루의 피해사례는 이미 보고되고 있습니다."
+        "실제 투발루의 피해사례(식수 오염, 농지 침수, 이주 압력 등)는 이미 보고되고 있습니다."
     )
 
 # -------------------------
